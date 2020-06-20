@@ -1,33 +1,33 @@
 // Require modules
 var request = require('request');
-var serialport = require("serialport");
-var SerialPort = serialport.SerialPort;
+var SerialPort = require("serialport");
 var XBee = require('xbee-arest').XBee;
-var util = require('util');
+const Delimiter = require('@serialport/parser-delimiter');
+
 
 var aREST = {
   devices: [],
   deviceExist: function(device) {
     var device_exist = false;
     for(var i = 0; i < this.devices.length; i++) {
-        if (this.devices[i].id == device || this.devices[i].name == device) {
-          device_exist = true;
-        }
+      if (this.devices[i].id == device || this.devices[i].name == device) {
+        device_exist = true;
+      }
     }
     return device_exist;
   },
   getDevice: function(device) {
     for(var i = 0; i < this.devices.length; i++) {
-        if (this.devices[i].id == device || this.devices[i].name == device) {
-          return this.devices[i];
-        }
+      if (this.devices[i].id == device || this.devices[i].name == device) {
+        return this.devices[i];
+      }
     }
   },
   getDeviceIndex: function(device) {
     for(var i = 0; i < this.devices.length; i++) {
-        if (this.devices[i].id == device || this.devices[i].name == device) {
-          return i;
-        }
+      if (this.devices[i].id == device || this.devices[i].name == device) {
+        return i;
+      }
     }
   }
 };
@@ -40,19 +40,19 @@ function initXBee(serial_port){
 
   // Create XBee object
   var xbee = new XBee({
-    port: serial_port,   
+    port: serial_port,
     baudrate: 9600
   }).init();
 
   // Init XBee
   xbee.on("initialized", function(params) {
-    xbee.discover(); 
+    xbee.discover();
     console.log("Node discovery starded...");
   });
 
   // Discover nodes
   xbee.on("newNodeDiscovered", function(node) {
-    
+
     // If node is discovered
     console.log("Node %s discovered", node.remote64.hex);
 
@@ -61,25 +61,28 @@ function initXBee(serial_port){
 
     // Listen for data
     node.once("data", function(data) {
-        console.log("%s> %s", node.remote64.hex, data);
-        if (data.endsWith('\r\n')) {
-          answer = JSON.parse(data.toString('utf8'));
-        
-          if ( !(aREST.deviceExist(answer.id)) ){
+      console.log("%s> %s", node.remote64.hex, data);
+      if (data.endsWith('\r\n')) {
+        answer = JSON.parse(data.toString('utf8'));
 
-            var new_device = new Device();
-            new_device.type = 'xbee';
-            new_device.xbee_node = node;
-            new_device.id = answer.id;
-            new_device.name = answer.name;
-            aREST.devices.push(new_device);
-            console.log("Device added with ID: " + answer.id);
-          }
+        if ( !(aREST.deviceExist(answer.id)) ){
+
+          var new_device = new Device();
+          new_device.type = 'xbee';
+          new_device.xbee_node = node;
+          new_device.id = answer.id;
+          new_device.name = answer.name;
+          aREST.devices.push(new_device);
+          console.log("Device added with ID: " + answer.id);
         }
+      }
     });
 
     // Send ID command to get node ID & name
-    node.send("/id\r");
+    node.send("/id\r", function(err, status) {
+      // Transmission successful if err is null
+      if (err) {console.log(err);};
+    });
 
   });
 
@@ -98,23 +101,24 @@ function Device () {
   this.serial_port = {};
   this.xbee_node = {};
   this.message = {};
+  this.parser;
+  this.answer = undefined;
 
-  this.serialRequest = function(options, callback) {
-
-    var answer;
-
-    this.serial_port.once('data', function(data) {
-        answer = JSON.parse(data.toString('utf8'));
-        console.log('data received: ' + JSON.stringify(answer));
-      });
-
-    this.serial_port.write(Buffer(options.command + "\r"), function() {
-      console.log('command sent via Serial');
-      setTimeout(function() {
+  this.serialRequest = (options, callback) => {
+    this.serial_port.write(Buffer(options.command + "\r"), () => {
+      console.log('\n\ncommand sent via Serial');
+      setTimeout(() => {
         if (typeof callback != 'undefined'){
-          callback(false, 'response', answer);
-        } 
-      }, 250);
+          let answer;
+          if (!!this.answer) {
+            answer = (' ' + this.answer).slice(1);
+            this.answer = undefined;
+          } else {
+            answer = undefined;
+          }
+          callback(false, 'response', JSON.parse(answer));
+        }
+      }, 1000);
     });
   };
 
@@ -122,9 +126,17 @@ function Device () {
 
     var answer;
 
-    this.xbee_node.once("data", function(data) {
-        answer = JSON.parse(data.toString('utf8'));
-        console.log('XBee data received: ' + JSON.stringify(answer));
+    this.xbee_node.on("data", function(data) {
+
+      try {
+        answer = JSON.parse(answer + data.toString('utf8'));
+      }
+      catch(e) {
+        answer = data.toString('utf8');
+      }
+      console.log('data received: ' + answer);
+
+      console.log('XBee data received: ' + answer);
     });
 
     this.xbee_node.send(command + "\r", function() {
@@ -133,7 +145,7 @@ function Device () {
         if (typeof callback != 'undefined'){
           console.log('Returned message: ' + JSON.stringify(answer));
           callback(false, 'response', answer);
-        } 
+        }
       }, 250);
     });
   };
@@ -141,13 +153,17 @@ function Device () {
   this.openSerialPort = function() {
 
     this.serial_port = new SerialPort(this.address, {
-      baudRate: this.speed,
-      parser: serialport.parsers.readline("\n")
+      baudRate: this.speed
     }, function(error){
       if (error) {console.log('Serial port cannot be opened');}
     });
 
     var sp = this.serial_port;
+    this.parser = sp.pipe(new Delimiter({ delimiter: '\n' }))
+    this.parser.on('data', (data) => {
+      this.answer = data.toString('utf8');
+      console.log('data received: ' + this.answer);
+    });
 
     sp.on('open', function () {
       console.log('Serial port opened');
@@ -162,7 +178,7 @@ function Device () {
         uri: 'http://' + this.address + '/' + variable,
         json: true,
         timeout: 1000
-      }, callback);  
+      }, callback);
     }
 
     if (this.type == 'serial'){
@@ -184,7 +200,7 @@ function Device () {
         uri: 'http://' + this.address + '/' + the_function + "?params=" + parameters,
         json: true,
         timeout: 1000
-      }, callback);  
+      }, callback);
     }
 
     if (this.type == 'serial'){
@@ -281,7 +297,7 @@ function Device () {
       this.xbeeRequest('/digital/' + pin + '/' + value, callback);
     }
   };
-  
+
   this.takeSnapshot = function(callback) {
 
     if (this.type == 'http'){
@@ -302,7 +318,7 @@ function Device () {
         timeout: 1000
       }, callback);
     }
-    
+
     if (this.type == 'serial'){
       this.serialRequest({
         command: '/mode/' + pin + '/' + value
@@ -362,12 +378,12 @@ module.exports = function (app) {
           res.json(body);
         });
       }
-      
+
     }
     else {
       res.json({message: 'Device not found'});
     }
-    
+
   });
 
   // Digital write
@@ -445,8 +461,8 @@ module.exports = function (app) {
       res.json(body);
     });
   });
-  
-   // Take picture (for RPi)
+
+  // Take picture (for RPi)
   app.get('/:device/camera/snapshot', function(req,res){
 
     console.log('Snapshot request sent to device: ' + req.params.device);
@@ -459,7 +475,7 @@ module.exports = function (app) {
       res.json(body);
     });
   });
-  
+
   return {
     devices: aREST.devices,
     addDevice: function(type, address, speed) {
@@ -470,7 +486,7 @@ module.exports = function (app) {
 
       if (typeof speed != 'undefined'){
         new_device.speed = speed;
-      } 
+      }
 
       if (type == 'serial') {
         new_device.openSerialPort();
@@ -491,7 +507,7 @@ module.exports = function (app) {
               console.log("Device added with ID: " + body.id);
             }
           });
-        }, 2000);
+        }, 5000);
       }
     },
     listDevices: function() {
