@@ -23,6 +23,6 @@ function getRequest(url)
 {
 	$.get(url, function(response){
 		console.log(response);
-		$("#console").text(response.message);
+		$("#console").text(JSON.stringify(response, null, 2));
 	});
 }

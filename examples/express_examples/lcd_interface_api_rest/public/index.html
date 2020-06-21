@@ -8,30 +8,39 @@
 
 		<!-- Bootstrap CSS -->
 		<link rel="stylesheet" href="css/bootstrap.min.css">
+		<link rel="stylesheet" href="css/custom.css">
 		</head>
 	<body>
-		<!-- jumbotron -->
-	    <div class="jumbotron jumbotron-fluid bg-info" id="home">
-			<div class="container text-xs-center">
-				<h1 class="display-5 my-1 text-white">Node.js + aREST</h1>
+		<div class="container">
+			<div class="row">
+				<div class="col-xs-12 no-padding">
+					<div class="jumbotron jumbotron-fluid bg-info" id="home">
+						<div class="container text-xs-center">
+							<h1 class="display-5 my-1 text-white">Node.js + aREST</h1>
 
-				<div class="btn-group my-1" role="group" aria-label="Basic example">
-					<button type="button" class="btn btn-secondary btn-lg" data-toggle="modal" id="off">Off</button>
-					<a class="btn btn-primary btn-lg" id="on">On</a>
-				</div>
-				<div class="input-group container">
-					<input type="text" class="form-control" placeholder="" id="texto">
-					<span class="input-group-btn">
+							<div class="btn-group my-1" role="group" aria-label="Basic example">
+								<button type="button" class="btn btn-secondary btn-lg" data-toggle="modal" id="off">Off</button>
+								<a class="btn btn-primary btn-lg text-white" id="on">On</a>
+							</div>
+							<div class="input-group container">
+								<input type="text" class="form-control" placeholder="" id="texto">
+								<span class="input-group-btn">
 						<button class="btn btn-secondary" type="button" id="enviar">Send</button>
 					</span>
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
-	    </div>
-	    <!-- /jumbotron -->
-	    <ol class="breadcrumb">
-		 	<li class="breadcrumb-item active">Console:</li>
-		 	<li class="breadcrumb-item active" id="console"></li>
-		</ol>
+			<div class="row">
+				<div class="col-xs-12 no-padding">
+					<ol class="breadcrumb black-background">
+						<li class="breadcrumb-item text-white">Console:</li>
+						<li class="breadcrumb-item text-white" id="console"></li>
+					</ol>
+				</div>
+			</div>
+		</div>
 
 		<!-- jQuery first, then Tether, then Bootstrap JS. -->
 		<script src="js/jquery-3.1.1.min.js"></script>

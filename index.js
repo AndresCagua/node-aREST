@@ -118,7 +118,7 @@ function Device () {
           }
           callback(false, 'response', JSON.parse(answer));
         }
-      }, 1000);
+      }, 400);
     });
   };
 
